@@ -1,0 +1,215 @@
+<html>
+
+
+
+<head>
+
+  <meta charset="utf-8" />
+
+  <title>Challenge</title>
+
+  <script>
+
+  // IE 11 solution instead of `URLSearchParams`.
+
+  function computeQueryParametersUsingFallback() {
+
+    const decodedParameters = {};
+
+    decodeURIComponent(window.location.href).replace(/[?&]+([^=&]+)=([^&]*)/gi, function(_, key, value) {
+
+      return(decodedParameters[key] = value);
+
+    });
+
+    return decodedParameters;
+
+  }
+
+  // Get the query parameters used to set up the Arkose API:
+
+  const queryParameters = window.Proxy !== undefined && window.URLSearchParams !== undefined ? new Proxy(new URLSearchParams(window.location.search), {
+
+    get: function(searchParameters, property) {
+
+      return searchParameters.get(property);
+
+    }
+
+  }) : computeQueryParametersUsingFallback();
+
+  // Create a script element to load the Arkose API with the passed in
+
+  // public key:
+
+  script = document.createElement('script');
+
+  script.type = 'text/javascript';
+
+  script.async = true;
+
+  script.defer = true;
+
+  const publicKey = queryParameters.publicKey !== undefined ? queryParameters.publicKey.replace(/[^a-zA-Z0-9-]+/g, '') : undefined;
+
+  script.src = window.location.origin + '/v2/' + publicKey + '/api.js';
+
+  script.setAttribute('data-callback', 'setupEnforcement');
+
+  document.getElementsByTagName('head')[0].appendChild(script);
+
+
+
+  function setupEnforcement(myEnforcement) {
+
+    myEnforcement.setConfig({
+
+      selector: '#arkose',
+
+      mode: 'inline',
+
+      data: {
+
+        blob: decodeURIComponent(queryParameters.dataExchangeBlob),
+
+        id: queryParameters['fc_nosuppress'] == 1 ? 'ML_defence' : // Only applies to dev environments:
+
+          queryParameters['fc_suppress'] == 1 ? 'customer_transparent' : undefined
+
+      },
+
+      onCompleted: function(response) {
+
+        console.log("Captcha Complete");
+
+        console.log(response);
+
+        parent.postMessage(JSON.stringify({
+
+          arkoseIframeId: queryParameters.arkoseIframeId,
+
+          eventId: 'challenge-completed',
+
+          payload: {
+
+            captchaToken: response.token
+
+          }
+
+        }), '*');
+
+      },
+
+      onError: function(response) {
+
+        console.log("onError");
+
+        console.log(response);
+
+        parent.postMessage(JSON.stringify({
+
+          arkoseIframeId: queryParameters.arkoseIframeId,
+
+          eventId: 'challenge-error',
+
+          payload: {
+
+            captchaToken: response.token,
+
+            error: response.error
+
+          }
+
+        }), '*');
+
+      },
+
+      onShown: function(response) {
+
+
+
+        console.log("onShown");
+
+      },
+
+      onSuppress: function(response) {
+
+        console.log("onSuppress");
+
+        console.log(response);
+
+        parent.postMessage(JSON.stringify({
+
+          arkoseIframeId: queryParameters.arkoseIframeId,
+
+          eventId: 'challenge-suppressed',
+
+          payload: {
+
+            captchaToken: response.token
+
+          }
+
+        }), '*');
+
+      },
+
+      onResize: function(response) {
+
+        console.log("onResize");
+
+        console.log(response);
+
+        parent.postMessage(JSON.stringify({
+
+          arkoseIframeId: queryParameters.arkoseIframeId,
+
+          eventId: 'challenge-resize',
+
+          payload: {
+
+            width: response.width,
+
+            height: response.height
+
+          }
+
+        }), '*');
+
+      },
+
+      onReady: function() {
+
+        console.log("onReady");
+
+        console.log(response);
+
+        parent.postMessage(JSON.stringify({
+
+          arkoseIframeId: queryParameters.arkoseIframeId,
+
+          eventId: 'challenge-ready'
+
+        }), '*');
+
+      }
+
+    });
+
+  }
+
+  </script>
+
+</head>
+
+
+
+<body style="margin: 0px">
+
+  <div id="arkose"></div>
+
+</body>
+
+
+
+</html>
